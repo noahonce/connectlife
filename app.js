@@ -193,28 +193,42 @@ function teardownWelcomeScene() {
   }
 }
 
-function makeGroveTree(scene, x, z, scale) {
-  const g = new THREE.Group();
-  const trunk = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.09, 0.11, 0.5, 8),
-    new THREE.MeshStandardMaterial({ color: 0x8B5E34, roughness: 0.9 })
-  );
-  trunk.position.y = 0.25;
-  trunk.castShadow = true;
-  g.add(trunk);
-
-  const foliageColors = [0x4CAF6D, 0x5FC97D, 0x3E9E5C];
-  const puffs = [
+// Trunk/foliage geometry and materials are identical for every tree — only
+// the group's position and scale differ — so they're built once and shared.
+// This used to allocate 5 geometries and 5 materials per tree and dispose
+// none of them, which leaked on every rebuild (the scene is rebuilt on each
+// resize) and would have gotten far worse now that a wide screen's grove is
+// several times larger.
+let grovePartsCache = null;
+function groveParts() {
+  if (grovePartsCache) return grovePartsCache;
+  const puffSpecs = [
     { x: 0, z: 0, y: 0.86, r: 0.34 },
     { x: 0.22, z: 0.1, y: 0.72, r: 0.27 },
     { x: -0.21, z: 0.13, y: 0.7, r: 0.26 },
     { x: 0.02, z: -0.23, y: 0.76, r: 0.28 },
   ];
-  puffs.forEach((p, i) => {
-    const puff = new THREE.Mesh(
-      new THREE.SphereGeometry(p.r, 10, 8),
-      new THREE.MeshStandardMaterial({ color: foliageColors[i % foliageColors.length], roughness: 0.8 })
-    );
+  const foliageColors = [0x4CAF6D, 0x5FC97D, 0x3E9E5C];
+  grovePartsCache = {
+    trunkGeo: new THREE.CylinderGeometry(0.09, 0.11, 0.5, 8),
+    trunkMat: new THREE.MeshStandardMaterial({ color: 0x8B5E34, roughness: 0.9 }),
+    puffSpecs,
+    puffGeos: puffSpecs.map((p) => new THREE.SphereGeometry(p.r, 10, 8)),
+    puffMats: foliageColors.map((c) => new THREE.MeshStandardMaterial({ color: c, roughness: 0.8 })),
+  };
+  return grovePartsCache;
+}
+
+function makeGroveTree(scene, x, z, scale) {
+  const parts = groveParts();
+  const g = new THREE.Group();
+  const trunk = new THREE.Mesh(parts.trunkGeo, parts.trunkMat);
+  trunk.position.y = 0.25;
+  trunk.castShadow = true;
+  g.add(trunk);
+
+  parts.puffSpecs.forEach((p, i) => {
+    const puff = new THREE.Mesh(parts.puffGeos[i], parts.puffMats[i % parts.puffMats.length]);
     puff.position.set(p.x, p.y, p.z);
     puff.castShadow = true;
     g.add(puff);
@@ -232,7 +246,14 @@ function initWelcomeScene() {
   teardownWelcomeScene();
   const holder = document.getElementById('welcomeScene');
   if (!holder || typeof THREE === 'undefined') return;
-  const w = WELCOME_SCENE_W, h = WELCOME_SCENE_H;
+  // Was hardcoded to WELCOME_SCENE_W/H (341x658, an old phone mock), so on a
+  // desktop the grove rendered into a narrow phone-shaped strip down the left
+  // of the window instead of filling it. Every other 3D view in the app reads
+  // its holder's live size; this one now does too, with the old numbers kept
+  // only as a fallback for the case where the holder hasn't been laid out yet
+  // and reports zero.
+  const w = holder.clientWidth || WELCOME_SCENE_W;
+  const h = holder.clientHeight || WELCOME_SCENE_H;
 
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(0xBEE7FB);
@@ -246,20 +267,34 @@ function initWelcomeScene() {
   holder.appendChild(renderer.domElement);
   welcomeRenderer = renderer;
 
+  // How much ground this camera actually sees. The orbit radius and height
+  // below must match animate()'s camera.position.set, and 50 is the vertical
+  // FOV above — with those, everything that has to cover the screen (the
+  // ground disc, the shadow frustum, how far out to plant trees) can be
+  // derived from the real aspect ratio instead of assuming a phone.
+  const CAM_ORBIT = 2, CAM_Y = 7;
+  const camDist = Math.hypot(CAM_ORBIT, CAM_Y);
+  const halfH = Math.tan((50 / 2) * Math.PI / 180) * camDist;
+  const halfW = halfH * (w / h);
+  const groundR = Math.max(8, Math.hypot(halfW, halfH) + 2);
+
   const hemi = new THREE.HemisphereLight(0xffffff, 0x4CAF6D, 0.9);
   scene.add(hemi);
   const sun = new THREE.DirectionalLight(0xfff3d0, 1.25);
   sun.position.set(4, 8, 3);
   sun.castShadow = true;
-  sun.shadow.mapSize.set(1024, 1024);
-  sun.shadow.camera.left = -6;
-  sun.shadow.camera.right = 6;
-  sun.shadow.camera.top = 6;
-  sun.shadow.camera.bottom = -6;
+  // A wider frustum over the same map size means blurrier shadows, so the map
+  // steps up once the view is big enough to need it.
+  const shadowSpan = Math.max(6, Math.max(halfW, halfH) + 1.5);
+  sun.shadow.mapSize.set(shadowSpan > 8 ? 2048 : 1024, shadowSpan > 8 ? 2048 : 1024);
+  sun.shadow.camera.left = -shadowSpan;
+  sun.shadow.camera.right = shadowSpan;
+  sun.shadow.camera.top = shadowSpan;
+  sun.shadow.camera.bottom = -shadowSpan;
   scene.add(sun);
 
   const ground = new THREE.Mesh(
-    new THREE.CylinderGeometry(8, 8, 0.4, 48),
+    new THREE.CylinderGeometry(groundR, groundR, 0.4, 48),
     new THREE.MeshStandardMaterial({ color: 0x6FCB6F, roughness: 0.95 })
   );
   ground.position.y = -0.2;
@@ -275,6 +310,29 @@ function initWelcomeScene() {
     [-1.6, 3.0, 0.65], [1.6, 2.8, 0.7],
   ];
   treeSpots.forEach(([x, z, scale]) => makeGroveTree(scene, x, z, scale));
+
+  // Those 17 spots are hand-placed to fill a phone's narrow view. On anything
+  // wider they'd sit in a thin strip down the middle with bare grass either
+  // side, so the rest of what the camera can see is filled with a scattered
+  // grove around them. Deterministic (idleHash, never Math.random): a resize
+  // rebuilds this whole scene, and a random scatter would make the forest
+  // jump every time the window changed.
+  const CORE_HALF_X = 2.0, CORE_Z_MIN = -3.2, CORE_Z_MAX = 3.4;
+  const STEP = 1.15;
+  const cols = Math.ceil((halfW + 1.2) / STEP);
+  const rows = Math.ceil((halfH + 1.2) / STEP);
+  let n = 0;
+  for (let cx = -cols; cx <= cols; cx++) {
+    for (let cz = -rows; cz <= rows; cz++) {
+      n += 1;
+      const x = cx * STEP + (idleHash(n, 41) - 0.5) * 0.85;
+      const z = cz * STEP + (idleHash(n, 42) - 0.5) * 0.85;
+      // Leave the hand-placed core alone rather than crowding it.
+      if (Math.abs(x) < CORE_HALF_X && z > CORE_Z_MIN && z < CORE_Z_MAX) continue;
+      if (Math.hypot(x, z) > groundR - 0.8) continue;
+      makeGroveTree(scene, x, z, 0.55 + idleHash(n, 43) * 0.5);
+    }
+  }
 
   let angle = 0;
   function animate() {
@@ -1959,6 +2017,10 @@ const HOW_IT_WORKS_CARDS = [
     text: () => `This is the Structures tab, where you can go to spend your coins on new buildings for ${escapeHtml(state.villageName)}.`,
   },
   {
+    tab: 'settings',
+    text: () => `And this is the Settings tab, where you can go to change your name, how you look, or what ${escapeHtml(state.villageName)} is called. Nothing you just picked is locked in.`,
+  },
+  {
     tab: null,
     text: () => `That's everything! Welcome to ConnectLife!`,
   },
@@ -3525,17 +3587,57 @@ function buildForestWall(scene) {
 // sits between the forest's north wall and the sea to the east, so it's
 // sea) — runs out to BORDER_FAR same as the forest, so fog hides its true
 // edge instead of the sea visibly stopping.
+// Writes a shore-to-deep colour ramp onto a water slab as vertex colours.
+// `axis` is the direction heading out to sea. Both slabs are built centred on
+// their own length and then pushed out so their near edge sits on the board
+// boundary, so a vertex's distance offshore is just its local coordinate plus
+// half the slab's length — no world-space lookup needed.
+const SEA_SHALLOW = new THREE.Color(0x5DC2E8);   // unchanged at the waterline
+// A deeper, richer BLUE rather than a darker version of the shallows — the
+// first attempt at this desaturated toward navy and read as murky water in a
+// palette that is otherwise vivid everywhere else.
+const SEA_DEEP = new THREE.Color(0x0F6FD6);
+// How far out it takes to reach full depth. Kept well inside the fog's near
+// plane (24, see initVillageScene) — at 24 the ramp only finished where fog
+// had already started bleaching the water toward sky colour, so the darkening
+// was there in the vertex data and invisible on screen.
+const SEA_DEPTH_RUN = 9;
+
+function paintSeaDepth(geo, axis) {
+  const pos = geo.attributes.position;
+  const colors = new Float32Array(pos.count * 3);
+  const c = new THREE.Color();
+  for (let i = 0; i < pos.count; i++) {
+    const local = axis === 'z' ? pos.getZ(i) : pos.getX(i);
+    const offshore = local + BORDER_FAR / 2;
+    // Darkens fast in the shallows and then levels off, the way real water
+    // does — a straight linear ramp read as a flat wash instead.
+    const t = Math.min(1, Math.max(0, offshore / SEA_DEPTH_RUN));
+    c.copy(SEA_SHALLOW).lerp(SEA_DEEP, Math.pow(t, 0.62));
+    colors[i * 3] = c.r; colors[i * 3 + 1] = c.g; colors[i * 3 + 2] = c.b;
+  }
+  geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+}
+
 function buildWaterBorder(scene) {
   // Brighter/shinier than the rest of the toned-down palette on purpose —
   // the user asked for the sea specifically to pop more than everything
   // else, not just ride along with the general lighting increase below.
-  const waterMat = new THREE.MeshStandardMaterial({ color: 0x5DC2E8, roughness: 0.18, transparent: true, opacity: 0.92 });
+  // Shallow at the shore, deepening out to sea. The colour is carried by
+  // vertex colours rather than a texture — no image file, and the gradient
+  // follows the geometry exactly. material.color stays white so the vertex
+  // colours aren't tinted twice.
+  const waterMat = new THREE.MeshStandardMaterial({
+    color: 0xffffff, roughness: 0.18, transparent: true, opacity: 0.92, vertexColors: true,
+  });
 
   // South band: runs forever south, spans the board's width plus a bit
   // extra on the east side to meet the east band at the corner, stopping
   // at the board's own west edge so it never encroaches on the forest.
   const southWidth = GRID_SIZE * CELL + BORDER_CORNER;
-  const south = new THREE.Mesh(new THREE.BoxGeometry(southWidth, 0.15, BORDER_FAR), waterMat);
+  const southGeo = new THREE.BoxGeometry(southWidth, 0.15, BORDER_FAR, 1, 1, 40);
+  paintSeaDepth(southGeo, 'z');
+  const south = new THREE.Mesh(southGeo, waterMat);
   south.position.set(-GRID_HALF + southWidth / 2, -0.05, GRID_HALF + BORDER_FAR / 2);
   south.receiveShadow = true;
   scene.add(south);
@@ -3545,10 +3647,221 @@ function buildWaterBorder(scene) {
   // southeast corner) and the north side (to fill the northeast corner,
   // since the forest's north wall stops at the board's own east edge).
   const eastHeight = GRID_SIZE * CELL + BORDER_CORNER * 2;
-  const east = new THREE.Mesh(new THREE.BoxGeometry(BORDER_FAR, 0.15, eastHeight), waterMat);
+  const eastGeo = new THREE.BoxGeometry(BORDER_FAR, 0.15, eastHeight, 40, 1, 1);
+  paintSeaDepth(eastGeo, 'x');
+  const east = new THREE.Mesh(eastGeo, waterMat);
   east.position.set(GRID_HALF + BORDER_FAR / 2, -0.05, GRID_HALF - eastHeight / 2 + BORDER_CORNER);
   east.receiveShadow = true;
   scene.add(east);
+
+  buildShoreWaves(scene, southWidth, -GRID_HALF + southWidth / 2, eastHeight, GRID_HALF - eastHeight / 2 + BORDER_CORNER);
+}
+
+// Waves rolling in and breaking on the two sea edges.
+//
+// The water itself is a flat slab, which is why it read as blue ground
+// rather than sea — nothing moved, and nothing marked where water met land.
+// Rather than displace a subdivided surface (expensive, and at this camera
+// angle the height barely reads), the motion is carried by foam: bands that
+// travel shoreward, swell, then break out exactly at the waterline, over a
+// permanent foam line that marks the edge.
+//
+// The slab's top face is at y = 0.025 (box of height 0.15 centred at -0.05),
+// so the foam sits just above it at 0.035 with depthWrite off — close enough
+// to look like it's on the surface, without z-fighting against it.
+const SHORE_WAVE_COUNT = 3;
+// Waves only exist close in. They used to run 15 units out, which drew long
+// white stripes right across open water and read as stripes, not swell.
+const SHORE_WAVE_REACH = 6.5;
+const SHORE_FOAM_Y = 0.035;
+// A wave front is drawn as ribbons built from real geometry, NOT boxes. Boxes
+// were tried twice: a full-width bar, then short tilted ones. Both read as
+// bars, because a rectangular prism has blunt parallel ends however small or
+// angled it is. What sells foam is a centreline that curves and a width that
+// tapers away to nothing at the tips.
+const SHORE_ARCS_PER_WAVE = 3;      // gaps between them break up the front
+const SHORE_ARC_SAMPLES = 20;       // points along one arc's curve
+const SHORE_CREST_BOW = 1.25;       // how far the front bows in and out, in units
+
+// One arc of foam: a strip that follows `bowAt` along the shore and tapers to
+// a point at both ends. Built in local space with the shore axis running
+// through it, so animating the wave is just moving the mesh offshore.
+function buildCrestArc(axis, alongStart, alongLen, bowAt, maxHalf) {
+  const positions = [];
+  const indices = [];
+  for (let i = 0; i < SHORE_ARC_SAMPLES; i++) {
+    const t = i / (SHORE_ARC_SAMPLES - 1);
+    const along = alongStart + t * alongLen;
+    const off = bowAt(along);
+    // Pointed at both tips, fullest just off centre. The exponent keeps the
+    // taper from looking like a symmetrical leaf.
+    const half = maxHalf * Math.pow(Math.sin(t * Math.PI), 0.62);
+    if (axis === 'z') {
+      positions.push(along, 0, off - half, along, 0, off + half);
+    } else {
+      positions.push(off - half, 0, along, off + half, 0, along);
+    }
+  }
+  for (let i = 0; i < SHORE_ARC_SAMPLES - 1; i++) {
+    const a = i * 2, b = a + 1, c = a + 2, d = a + 3;
+    indices.push(a, b, c, b, d, c);
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  geo.setIndex(indices);
+  return geo;
+}
+
+function buildShoreWaves(scene, southWidth, southX, eastHeight, eastZ) {
+  const list = [];
+  // Pure white, not the faintly blue-tinted white this used to be — the tint
+  // let the foam sit too close to the water it was drawn on.
+  const foamColor = 0xFFFFFF;
+
+  // The permanent waterline: a thin band pinned to each shore that breathes
+  // slowly, so the edge stays legible even between waves.
+  const edge = (geo, x, z) => {
+    const m = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({
+      color: foamColor, transparent: true, opacity: 0.5, depthWrite: false, fog: false,
+    }));
+    m.position.set(x, SHORE_FOAM_Y, z);
+    m.renderOrder = 2;
+    scene.add(m);
+    return m;
+  };
+  // Wide and bright enough to read as surf against the grass at the game's
+  // actual camera angle, which looks across the water almost edge-on and
+  // compresses anything thin down to nothing.
+  const southEdge = edge(new THREE.BoxGeometry(southWidth, 0.02, 0.55), southX, GRID_HALF + 0.24);
+  const eastEdge = edge(new THREE.BoxGeometry(0.55, 0.02, eastHeight), GRID_HALF + 0.24, eastZ);
+
+  const buildWave = (i, axis, spanCentre, spanLength) => {
+    const seed = i * 3.77 + (axis === 'z' ? 0 : 11.3);
+    const h = (n) => idleHash(seed, n);
+    const freqA = 1.3 + h(61) * 1.5;
+    const freqB = 2.9 + h(62) * 2.2;
+    const phaseA = h(63) * Math.PI * 2;
+    const phaseB = h(64) * Math.PI * 2;
+    const spanStart = spanCentre - spanLength / 2;
+    // One continuous curve for the whole front — the arcs below are windows
+    // onto it, so a wave still reads as a single front with gaps torn in it
+    // rather than as three unrelated pieces.
+    const bowAt = (along) => {
+      const u = (along - spanStart) / spanLength;
+      return (Math.sin(u * Math.PI * freqA + phaseA) * 0.62
+            + Math.sin(u * Math.PI * freqB + phaseB) * 0.38) * SHORE_CREST_BOW;
+    };
+
+    for (let a = 0; a < SHORE_ARCS_PER_WAVE; a++) {
+      const slot = spanLength / SHORE_ARCS_PER_WAVE;
+      const ha = (n) => idleHash(seed + a * 2.17, n);
+      const arcLen = slot * (0.55 + ha(71) * 0.28);
+      const arcStart = spanStart + a * slot + (slot - arcLen) * ha(72);
+      const maxHalf = 0.16 + ha(73) * 0.12;
+      const geo = buildCrestArc(axis, arcStart, arcLen, bowAt, maxHalf);
+
+      const mesh = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({
+        // fog off: the scene fog is a muted grey-blue (0xA2C4D5) and it was
+        // bleeding into the foam at exactly the distance the shore sits from
+        // the camera, so "white" foam was rendering as grey-white.
+        color: foamColor, transparent: true, opacity: 0, depthWrite: false,
+        side: THREE.DoubleSide, fog: false,
+      }));
+      mesh.position.set(0, SHORE_FOAM_Y, 0);
+      mesh.renderOrder = 3;
+      scene.add(mesh);
+
+      // The foremost point of the built crest — read off the geometry itself,
+      // not the centreline it was drawn from. The crest has width, so its
+      // leading EDGE sits further forward than its centre does; measuring the
+      // curve alone left the edge sticking 0.24 onto the grass. Everything
+      // about the arc's life keys off this: whichever part runs furthest ahead
+      // is what reaches land first, and that is what ends it.
+      const gp = geo.attributes.position;
+      let min = Infinity;
+      for (let k = 0; k < gp.count; k++) {
+        min = Math.min(min, axis === 'z' ? gp.getZ(k) : gp.getX(k));
+      }
+      list.push({
+        mesh, axis, bowMin: min, near: 0,
+        // Arcs of one wave land fractionally apart rather than in unison. The
+        // curve used to supply that stagger as a side effect, but it also
+        // decided where each arc stopped — see the offset in updateShoreWaves
+        // — so the timing is its own small number now.
+        lag: ha(74) * 0.05,
+        phase: (i / SHORE_WAVE_COUNT + (axis === 'z' ? 0 : 0.41)) % 1,
+        speed: 1.12 + (i % 3) * 0.17,
+        leads: a === 1,
+      });
+    }
+  };
+
+  for (let i = 0; i < SHORE_WAVE_COUNT; i++) {
+    buildWave(i, 'z', southX, southWidth);
+    buildWave(i, 'x', eastZ, eastHeight);
+  }
+
+  // splash rises the instant a wave reaches the shore and decays after, so the
+  // waterline foams up in response to a wave rather than pulsing to its own
+  // unrelated rhythm.
+  villageShore = { list, southEdge, eastEdge, t: 0, splash: { z: 0, x: 0 } };
+}
+
+function updateShoreWaves(dt) {
+  if (!villageShore) return;
+  villageShore.t += dt;
+  const t = villageShore.t;
+
+  villageShore.list.forEach((w) => {
+    // cycle 0 -> 1 is one run from far out to the shore.
+    const cycle = ((t * w.speed) / SHORE_WAVE_REACH + w.phase + w.lag) % 1;
+    // Offset by the arc's own leading bow so that its FOREMOST point — not its
+    // origin — runs from SHORE_WAVE_REACH down to exactly 0 at the waterline.
+    // Without this the bow doubled as a finishing line: arcs curving shoreward
+    // drove their tips up to 1.4 units onto the grass, while one curving the
+    // other way never reached the water's edge at all and snapped out at full
+    // brightness when its cycle restarted. The curve still shapes the crest and
+    // still makes the rest of it trail behind the tip; it just no longer
+    // decides where the crest stops.
+    const dist = SHORE_WAVE_REACH * (1 - cycle) - w.bowMin;
+    if (w.axis === 'z') w.mesh.position.z = GRID_HALF + dist;
+    else w.mesh.position.x = GRID_HALF + dist;
+
+    // Measured at the crest's LEADING point, not its average. Keying the fade
+    // to the average meant a crest survived until its MIDDLE reached land, so
+    // the parts already ahead of that sat on the shore waiting. The whole
+    // crest now goes the moment any part of it touches.
+    const lead = cycle;   // by construction above, this IS the tip's progress
+    // Only appears in the last stretch of its run — a swell arriving, rather
+    // than a line drawn on open water. Ramps up quickly, holds at full white
+    // (a sine across the whole run peaked for one instant and read as dim),
+    // then snaps out on contact.
+    w.mesh.material.opacity =
+      lead < 0.55 ? 0
+      : lead < 0.68 ? (lead - 0.55) / 0.13
+      : lead < 0.95 ? 1
+      : Math.max(0, 1 - (lead - 0.95) / 0.05);
+
+    // The same contact kicks that shore's foam.
+    if (w.leads && w.near < 0.95 && lead >= 0.95) villageShore.splash[w.axis] = 1;
+    w.near = lead;
+  });
+
+  // Decay whatever the last wave kicked up. ~1.6s to fade out, so the foam
+  // surges as the wave lands and is still settling when the next arrives.
+  const fade = Math.max(0, 1 - dt / 1.6);
+  villageShore.splash.z *= fade;
+  villageShore.splash.x *= fade;
+
+  // A low resting waterline that swells with each arriving wave. The small
+  // sine keeps it alive between waves without reading as a pulse of its own.
+  const edgeOpacity = (splash, wobble) =>
+    0.26 + splash * 0.52 + Math.sin(wobble) * 0.05;
+  villageShore.southEdge.material.opacity = edgeOpacity(villageShore.splash.z, t * 0.9);
+  villageShore.eastEdge.material.opacity = edgeOpacity(villageShore.splash.x, t * 0.72 + 1.9);
+  // Foam spreads up the shore as it breaks, then draws back.
+  villageShore.southEdge.scale.z = 1 + villageShore.splash.z * 0.5;
+  villageShore.eastEdge.scale.x = 1 + villageShore.splash.x * 0.5;
 }
 
 // Resolves where everything on the board goes — core buildings, NPCs,
@@ -3951,6 +4264,7 @@ function rotateLocalToWorld(lx, lz, angle) {
 let villageScene = null, villageCamera = null, villageRenderer = null;
 let villageAnimId = null, villageClock = null;
 let villageAvatarRoot = null, villageOccupancy = null, villageColliders = null;
+let villageShore = null;   // animated wave/foam rig for the sea edges, see buildShoreWaves
 let villageJoystickBase = null, villageJoystickHandlers = null;
 let villagePlacementGhost = null, villagePlacementCursor = null;
 let villageNpcs = [], nearbyTalkNpc = null, activeDialogue = null;
@@ -3988,6 +4302,7 @@ function teardownVillageScene() {
   }
   if (villageAnimId !== null) cancelAnimationFrame(villageAnimId);
   villageAnimId = null;
+  villageShore = null;
   if (villageRenderer) {
     villageRenderer.dispose();
     if (villageRenderer.forceContextLoss) villageRenderer.forceContextLoss();
@@ -4856,6 +5171,7 @@ function initVillageScene() {
   function animate() {
     villageAnimId = requestAnimationFrame(animate);
     const dt = Math.min(villageClock.getDelta(), 0.05);
+    updateShoreWaves(dt);
 
     const mag = Math.min(1, Math.hypot(joystickVec.x, joystickVec.z));
     const pushed = mag > 0.08;
