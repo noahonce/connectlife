@@ -1,0 +1,387 @@
+:root{
+  --bg:#F2F1ED;
+  --ink:#1E1E1B;
+  --ink-soft:#68675F;
+  --frame:#232320;
+  --panel:#FFFFFF;
+  --ph-fill:#E9E8E2;
+  --ph-fill-2:#DCDAD1;
+  --ph-border:#C7C5BA;
+  --accent:#3D5A80;
+  --accent-soft:#DCE6EE;
+  --sage:#7C9473;
+  --sage-soft:#E4EBDF;
+  --danger:#B3543F;
+  --radius-frame:34px;
+  --radius-card:12px;
+}
+*{box-sizing:border-box;}
+html,body{height:100%;}
+body{
+  margin:0;
+  background:var(--bg);
+  font-family:'Inter',sans-serif;
+  color:var(--ink);
+  min-height:100vh;
+  padding:0;
+  overflow:hidden;
+}
+
+/* Was a 375x720 mock phone floating on a dotted backdrop. Nothing in the game
+   ever depended on that size — the 3D views all measure their own holder — so
+   it is just a container now, filling whatever window it is given. dvh rather
+   than vh so a mobile browser's collapsing URL bar doesn't leave a gap. */
+.phone{
+  width:100%;
+  height:100vh;
+  height:100dvh;
+  background:var(--panel);
+  border:0;
+  border-radius:0;
+  padding:0;
+  position:relative;
+  box-shadow:none;
+  overflow:hidden;
+}
+.phone-notch{display:none;}
+
+#app{height:100%;}
+
+/* Text-and-cards screens stay in a readable column on a wide monitor —
+   line lengths of 1500px are not "using the screen", they're unreadable.
+   The 3D screens below opt out and go edge to edge. */
+.screen{
+  width:100%;
+  max-width:720px;
+  margin:0 auto;
+  height:100%;
+  padding:18px 16px 14px;
+  display:flex;
+  flex-direction:column;
+  gap:12px;
+  overflow-y:auto;
+}
+
+h1,h2,h3,p{margin:0;}
+
+.txt{font-size:14px; line-height:1.4; color:var(--ink); font-weight:600;}
+.txt.soft{color:var(--ink-soft); font-weight:500;}
+.txt.tiny{font-size:12px;}
+.txt.center{text-align:center;}
+
+.btn{
+  background:var(--accent); color:#fff; font-size:14px; font-weight:700;
+  text-align:center; padding:13px 14px; border-radius:12px;
+  border:none; cursor:pointer; width:100%; font-family:inherit;
+  transition:opacity .15s;
+}
+.btn:hover{opacity:.9;}
+.btn:disabled{opacity:.4; cursor:not-allowed;}
+.btn.ghost{background:transparent; border:1.5px solid var(--frame); color:var(--frame);}
+.btn.sage{background:var(--sage);}
+.btn.link{
+  background:none; border:none; color:var(--ink-soft); font-size:12px; font-weight:500;
+  text-decoration:underline; cursor:pointer; padding:4px; width:auto; font-family:inherit;
+}
+
+input[type="text"]{
+  width:100%; padding:12px 14px; border-radius:12px; border:1.5px solid var(--ph-border);
+  font-family:inherit; font-size:15px; color:var(--ink); background:var(--ph-fill);
+  outline:none;
+}
+input[type="text"]:focus{border-color:var(--accent);}
+
+.progress-dots{display:flex; gap:5px;}
+.progress-dots span{height:4px; flex:1; border-radius:3px; background:var(--ph-border);}
+.progress-dots span.on{background:var(--accent);}
+
+.character-scene{
+  position:relative; border-radius:16px; overflow:hidden; height:230px; flex-shrink:0;
+  background:radial-gradient(circle at 50% 30%, #FFF7E3 0%, #FFE9BE 60%, #FBDA9C 100%);
+}
+#characterCanvas{width:100%; height:100%; cursor:grab;}
+#characterCanvas:active{cursor:grabbing;}
+.scene-hint{
+  position:absolute; bottom:6px; left:0; right:0; text-align:center; font-size:10px;
+  color:#8A6A2Ecc; font-weight:600; pointer-events:none;
+}
+.section-label{
+  font-size:10px; font-weight:700; color:var(--ink-soft); text-transform:uppercase;
+  letter-spacing:.04em; margin:8px 2px 2px;
+}
+
+.chip-row{display:flex; flex-wrap:wrap; gap:7px;}
+.chip{
+  font-size:13px; font-weight:700; padding:9px 14px; border-radius:20px;
+  background:var(--ph-fill); border:1.3px solid var(--ph-border); color:var(--ink-soft);
+  cursor:pointer; font-family:inherit;
+}
+.chip.on{background:var(--sage-soft); border-color:var(--sage); color:#3E5236;}
+
+.tab-row{display:flex; gap:6px; overflow-x:auto; padding-bottom:2px; flex-shrink:0;}
+.tab{
+  flex:0 0 auto; text-align:center; font-size:12px; font-weight:700; padding:8px 12px;
+  border-radius:10px; background:var(--ph-fill); color:var(--ink-soft); cursor:pointer;
+  border:1.5px solid transparent; white-space:nowrap;
+}
+.tab.on{background:var(--accent-soft); color:var(--accent); border-color:var(--accent);}
+
+.swatch-grid{display:grid; grid-template-columns:repeat(5,1fr); gap:8px;}
+.swatch{
+  aspect-ratio:1; border-radius:10px; display:flex; align-items:center; justify-content:center;
+  font-size:20px; border:2px solid var(--ph-border); background:var(--ph-fill); cursor:pointer;
+  color:var(--ink-soft);
+}
+.swatch.on{border-color:var(--accent); background:var(--accent-soft);}
+.swatch svg{width:62%; height:62%; display:block; overflow:visible;}
+
+.village-plot{
+  flex:1; background:var(--sage-soft); border:1.5px solid var(--ph-border); border-radius:var(--radius-card);
+  position:relative; overflow:hidden; min-height:220px;
+  display:flex; align-items:center; justify-content:center;
+}
+#villageScene, #townHallScene, #partyHallScene, #homeScene{ position:absolute; inset:0; }
+#villageScene canvas, #townHallScene canvas, #partyHallScene canvas, #homeScene canvas{
+  display:block; width:100%; height:100%;
+}
+
+.spacer{flex:1;}
+
+.dots{display:flex; gap:6px; justify-content:center;}
+.dots span{width:7px; height:7px; border-radius:50%; background:var(--ph-border);}
+.dots span.on{background:var(--accent);}
+
+.tutorial-dim{
+  position:absolute; inset:0; background:rgba(20,19,16,0.75);
+  z-index:1; pointer-events:none;
+}
+.tutorial-text{
+  position:relative; z-index:2;
+  background:#fff; border-radius:16px; padding:16px 18px;
+}
+.screen.welcome-screen{
+  position:relative; padding:0; gap:0; overflow:hidden; border-radius:0;
+  max-width:none;
+}
+.welcome-scene{position:absolute; inset:0; background:#BEE7FB;}
+.welcome-scene canvas{display:block; width:100%; height:100%;}
+.welcome-overlay{
+  position:relative; z-index:1; width:100%; height:100%;
+  display:flex; flex-direction:column; align-items:center; justify-content:flex-end;
+  text-align:center; padding:26px 22px 30px;
+  background:linear-gradient(to bottom, rgba(242,241,237,0) 0%, rgba(242,241,237,0.5) 42%, rgba(242,241,237,0.97) 62%);
+}
+.welcome-title{font-family:'Caveat',cursive; font-size:42px; font-weight:700; color:var(--ink); line-height:1;}
+
+/* ---------- Core app ---------- */
+
+.topbar{display:flex; justify-content:space-between; align-items:center;}
+.coin{
+  font-size:13px; font-weight:800; background:#FCEFC7; color:#8A6D00;
+  border:1.3px solid #E8C147; border-radius:20px; padding:6px 12px;
+  display:inline-flex; align-items:center; gap:4px; align-self:center;
+}
+
+.card{background:#fff; border:1.5px solid var(--ph-border); border-radius:var(--radius-card); padding:12px; display:flex; flex-direction:column; gap:6px;}
+.quest-card{cursor:pointer; transition:border-color .15s;}
+.quest-card:hover{border-color:var(--accent);}
+.tag{
+  align-self:flex-start; font-size:11px; font-weight:800; text-transform:uppercase;
+  letter-spacing:.03em; background:var(--sage-soft); color:#3E5236; padding:4px 9px; border-radius:20px;
+}
+
+.grid2{display:grid; grid-template-columns:1fr 1fr; gap:10px;}
+
+.navbar{
+  margin-top:auto; display:flex; justify-content:space-around; align-items:center;
+  background:var(--frame); border-radius:16px; padding:12px 4px;
+}
+.navbar .navitem{font-size:11px; color:#EDEDE8; font-weight:700; text-align:center; opacity:.55; cursor:pointer;}
+.navbar .navitem.active{opacity:1; color:#fff;}
+.navbar .navitem .dot{width:6px; height:6px; border-radius:50%; background:currentColor; margin:0 auto 4px;}
+.navbar .navitem.tutorial-target{
+  position:relative; z-index:2;
+  background:#fff; color:var(--ink);
+  border-radius:12px; padding:8px 10px; opacity:1;
+}
+.navbar .navitem.tutorial-target .dot{background:var(--accent);}
+
+/* Every 3D screen goes full-bleed: the room, the town and the two halls are
+   the whole point of the window, not a card inside it. */
+.screen.village-screen{
+  gap:0; max-width:none; padding:0;
+}
+.screen.village-screen .village-plot{
+  border:0; border-radius:0;
+}
+.screen.village-screen .navbar{
+  border-radius:0; padding:14px 4px;
+}
+#villageScene canvas{display:block; width:100%; height:100%;}
+.village-overlay-top{
+  position:absolute; top:10px; left:10px; right:10px; z-index:2;
+  display:flex; align-items:center; justify-content:flex-end; gap:8px;
+}
+.village-overlay-top .chip-row{gap:6px;}
+.village-overlay-top .chip{background:#fff; box-shadow:0 2px 6px #00000022; padding:7px 12px; font-size:12px;}
+.village-overlay-top .chip.on{background:var(--sage-soft);}
+.village-reset-link{
+  position:absolute; bottom:14px; right:14px; z-index:2; width:auto; padding:4px 8px;
+  font-size:10px; color:#ffffffdd; text-shadow:0 1px 3px #00000066; text-decoration:underline;
+  text-align:right;
+}
+.joystick-base{
+  position:absolute; bottom:18px; left:18px; width:104px; height:104px; border-radius:50%;
+  background:rgba(255,255,255,0.32); border:2px solid rgba(255,255,255,0.65);
+  box-shadow:0 2px 8px #00000022; z-index:2; touch-action:none;
+}
+.joystick-knob{
+  position:absolute; top:50%; left:50%; width:46px; height:46px; border-radius:50%;
+  margin:-23px 0 0 -23px; background:var(--accent); box-shadow:0 3px 0 #00000022;
+  pointer-events:none;
+}
+.village-intro-overlay{
+  position:absolute; inset:0; z-index:1; cursor:pointer;
+  display:flex; align-items:flex-end; justify-content:center; padding:18px;
+  background:linear-gradient(to bottom, rgba(30,30,27,0) 45%, rgba(30,30,27,0.55) 100%);
+}
+.village-intro-card{
+  background:#fff; border-radius:14px; padding:14px 16px; max-width:100%;
+  font-size:14px; font-weight:600; line-height:1.4; color:var(--ink);
+  box-shadow:0 4px 0 #00000018;
+}
+.placement-hint-row{justify-content:center;}
+.placement-hint{
+  background:#fff; box-shadow:0 2px 6px #00000022; border-radius:20px;
+  padding:8px 14px; font-size:12px; font-weight:700; color:var(--ink);
+}
+.placement-bar{
+  position:absolute; left:12px; right:12px; bottom:132px; z-index:2;
+  display:flex; gap:10px; background:#fff; padding:10px; border-radius:16px;
+  box-shadow:0 4px 14px #00000026;
+}
+.placement-bar .btn{width:auto; flex:1;}
+
+.village-action-row{
+  position:absolute; bottom:34px; left:50%; transform:translateX(-50%);
+  display:flex; gap:10px; z-index:2;
+}
+.talk-btn{
+  width:auto; display:inline-block; padding:12px 28px;
+  background:var(--accent); color:#fff; font-size:14px; font-weight:700;
+  font-family:inherit; border:none; border-radius:12px; cursor:pointer;
+  box-shadow:0 3px 0 #00000022;
+}
+.village-dialogue-overlay{
+  position:absolute; inset:0; z-index:3; cursor:pointer;
+  display:flex; align-items:flex-end; justify-content:center; padding:18px;
+  background:linear-gradient(to bottom, rgba(30,30,27,0) 45%, rgba(30,30,27,0.55) 100%);
+}
+.village-dialogue-card{
+  background:#fff; border-radius:14px; padding:14px 16px; max-width:100%;
+  box-shadow:0 4px 0 #00000018;
+}
+.village-dialogue-name{font-size:12px; font-weight:800; color:var(--accent); margin-bottom:4px;}
+.village-dialogue-text{font-size:14px; font-weight:600; line-height:1.4; color:var(--ink);}
+.village-dialogue-hint{font-size:10px; color:#00000066; margin-top:8px; text-align:right;}
+
+.structure-card{align-items:center; text-align:center; cursor:pointer;}
+.structure-card.locked{opacity:.5; cursor:default;}
+.structure-card.purchased{opacity:.5; filter:grayscale(1); cursor:default;}
+.structure-card.selected{border-color:var(--accent); background:var(--accent-soft);}
+.structure-preview{width:100%; height:76px; border-radius:10px; overflow:hidden;}
+.structure-preview canvas{display:block; width:100%; height:100%;}
+
+textarea{
+  width:100%; min-height:100px; padding:12px 14px; border-radius:12px; border:1.5px solid var(--ph-border);
+  font-family:inherit; font-size:14px; color:var(--ink); background:var(--ph-fill); outline:none; resize:vertical;
+}
+textarea:focus{border-color:var(--accent);}
+
+.back-link{cursor:pointer; text-decoration:underline; align-self:flex-start;}
+
+.screen-transition{
+  position:absolute; inset:0; z-index:50; border-radius:var(--radius-frame);
+  background:#1E1E1B; display:flex; flex-direction:column; align-items:center; justify-content:center;
+  gap:14px; opacity:0; transition:opacity .4s ease; pointer-events:none;
+}
+.screen-transition.in{opacity:1;}
+.screen-transition-label{color:#fff; font-size:13px; font-weight:700; letter-spacing:.02em;}
+.screen-transition-dots{display:flex; gap:6px;}
+.screen-transition-dots span{
+  width:8px; height:8px; border-radius:50%; background:#fff; opacity:.35;
+  animation:screenTransitionPulse 1s ease-in-out infinite;
+}
+.screen-transition-dots span:nth-child(2){animation-delay:.15s;}
+.screen-transition-dots span:nth-child(3){animation-delay:.3s;}
+@keyframes screenTransitionPulse{
+  0%,80%,100%{opacity:.35; transform:scale(1);}
+  40%{opacity:1; transform:scale(1.25);}
+}
+
+/* Dev-mode badge — only present while ?dev=1 is in effect (see
+   renderDevBadge). Sits inside the phone frame's padding, over the notch
+   row where no screen puts content, and ignores pointer events so it can
+   never swallow a tap meant for the UI underneath. */
+/* Top-CENTRE, where the old fake notch used to sit. The right is taken by the
+   village/interior chip row and the left by every content screen's title, so
+   this is the only strip nothing else claims. */
+.dev-badge{
+  position:absolute; top:8px; left:50%; transform:translateX(-50%); z-index:60;
+  padding:3px 8px; border-radius:999px;
+  background:#2F7D4F; color:#fff;
+  font-size:10px; font-weight:700; letter-spacing:0.05em;
+  pointer-events:none;
+  box-shadow:0 1px 3px #00000033;
+}
+
+/* The home's buttons stack down the right edge rather than sitting in a row
+   across the bottom like the village's. There can be four of them at once
+   (Move, Sell, Decorate, Exit) and the joystick already owns the bottom-left,
+   so a single row overflowed a 375px frame and clipped the end buttons. */
+.home-btn-stack{
+  position:absolute; right:12px; bottom:16px; z-index:2;
+  display:flex; flex-direction:column; align-items:flex-end; gap:7px;
+}
+.home-btn{ padding:9px 16px; font-size:13px; min-width:96px; text-align:center; }
+.home-btn.ghost{ background:#ffffffE6; color:var(--ink); }
+
+/* Hint line while positioning furniture — pinned to the top, clear of both
+   the joystick and the button stack. */
+.home-place-hint{
+  position:absolute; left:12px; right:12px; top:52px;
+  text-align:center; font-size:11px; font-weight:600;
+  color:#fff; text-shadow:0 1px 3px #00000099;
+  pointer-events:none; z-index:2;
+}
+
+/* One placed piece of furniture in the home's Structures tab. */
+/* .card sets a column flow for the shop cards; a placed-furniture row wants
+   the opposite, so the direction is forced back rather than inherited. */
+.home-row{display:flex; flex-direction:row; align-items:center; gap:8px; padding:10px 12px; margin-bottom:8px;}
+.home-row-name{flex:1; text-align:left;}
+.mini-btn{
+  font:inherit; font-size:11px; font-weight:700; border:0; border-radius:8px;
+  padding:6px 10px; background:var(--accent); color:#fff; cursor:pointer;
+}
+.mini-btn.ghost{background:var(--accent-soft); color:var(--accent);}
+
+/* Settings rows: label + current value on the left, chevron on the right.
+   Same card as everywhere else, just laid out in a row. */
+.settings-row{
+  /* .card is flex-direction:column — this row has to override it, not just
+     re-declare display:flex, or the chevron wraps under the label. */
+  flex-direction:row; align-items:center; gap:10px; cursor:pointer;
+}
+.settings-row:hover{border-color:var(--accent);}
+.settings-row-text{flex:1; min-width:0; text-align:left;}
+.settings-row-text .txt.soft.tiny{
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+}
+.settings-chevron{font-size:18px; line-height:1; flex:0 0 auto;}
+
+/* Journal entries are long-form writing, so they get real line height and
+   keep the paragraph breaks the player typed. */
+.journal-body{
+  font-size:13px; line-height:1.6; white-space:pre-wrap; word-break:break-word;
+}
