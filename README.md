@@ -2,8 +2,7 @@
 
 A town that grows every time you connect for real.
 
-ConnectLife turns reaching out to people into a game. You get quests — call a
-family member, go for a walk with a friend, cook something with someone — and
+ConnectLife turns reaching out to people into a game. You get different types of social quests, and
 when you finish one, you write about how it went. Completing quests earns coins,
 and coins build your town.
 
@@ -22,8 +21,8 @@ two-day cooldown, so the game doesn't run out.
 entry is kept in a journal you can read back — a record of every time you
 reached out.
 
-**Your town.** Coins buy structures: a bench, a garden, a fountain, a beach, a
-sports court, a party hall. Some of them draw a new neighbour into town, who
+**Your town.** Coins buy structures, being a bench, a garden, a fountain, a beach, a
+sports court, a party hall. Some of them attract a new neighbour into town, who
 moves into their own house and will tell you what brought them. You can walk
 around, talk to villagers, sit on benches, and go inside the town hall, the
 party hall and your own home — which you can furnish and paint.
@@ -45,3 +44,5 @@ Plain HTML, CSS and JavaScript — no frameworks. All 3D is
 [three.js](https://threejs.org/), and every model in the game (characters,
 buildings, furniture, trees) is built from primitives in code rather than
 imported from model files. Saves are stored in the browser's local storage.
+
+I hope you enjoy this game and that it brings you peace and healing.
