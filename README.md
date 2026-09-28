@@ -45,4 +45,5 @@ Plain HTML, CSS and JavaScript — no frameworks. All 3D is
 buildings, furniture, trees) is built from primitives in code rather than
 imported from model files. Saves are stored in the browser's local storage.
 
+
 I hope you enjoy this game and that it brings you peace and healing.
